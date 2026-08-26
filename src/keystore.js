@@ -49,6 +49,20 @@ function rawPublicKey(privateKey) {
   return createPublicKey(privateKey).export({ type: "spki", format: "der" }).subarray(-32);
 }
 
+/**
+ * DID だけを取り出す。パスフレーズを必要としない。
+ * ノートの延命更新は署名が要らない（署名必須なのは room-owners と room-allow のみ）ので、
+ * 自動実行からキーチェーンを触らずに済ませるためのもの。
+ */
+export function loadDid() {
+  const cached = join(HOME_DIR, "did.txt");
+  if (existsSync(cached)) {
+    const did = readFileSync(cached, "utf8").trim();
+    if (did.startsWith("did:key:z")) return did;
+  }
+  return loadIdentity().did;
+}
+
 /** 既存の鍵を読む。無ければ例外。 */
 export function loadIdentity() {
   if (!existsSync(KEY_PATH)) {

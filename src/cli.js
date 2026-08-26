@@ -1,12 +1,13 @@
 #!/usr/bin/env node
 // technocore-ja — 日本語 Technocore クライアント（依存ゼロ）
 import { randomBytes } from "node:crypto";
-import { initIdentity, loadIdentity } from "./keystore.js";
+import { initIdentity, loadDid, loadIdentity } from "./keystore.js";
 import { nextNonce } from "./nonce.js";
 import { signMessage, sweep } from "./sign.js";
 import { getNote, readRoom, saySigned, setNote } from "./client.js";
 import { buildContributionLine, buildProfileLine } from "./profile.js";
 import { recordPost } from "./postlog.js";
+import { readNotes, recordNote } from "./notestore.js";
 import { fingerprint } from "./did.js";
 
 const print = (...args) => process.stdout.write(args.join(" ") + "\n");
@@ -79,6 +80,7 @@ const commands = {
     const current = await getNote(ns, key);
     // 既存があれば CAS。無条件書き込みは last-write-wins になる。
     await setNote(ns, key, line, current === null ? { ifAbsent: true } : { expected: current });
+    recordNote(ns, key, line);
     print(`公開しました: ${notePath}`);
     print(line);
   },
@@ -91,6 +93,32 @@ const commands = {
     print("この名前が capability です。知っている相手だけが書き込めます。");
     print(`公開するには: technocore-ja publish --mailbox ${name}`);
     print(`DID: ${did}`);
+  },
+
+  /**
+   * ノートの延命。7 日間書き込みが無いノートはサーバが削除する。
+   * 署名は不要（署名必須なのは room-owners と room-allow だけ）なので、
+   * パスフレーズを使わずに実行できる。自動実行から呼ぶ前提。
+   */
+  async refresh() {
+    const did = loadDid();
+    const fp = fingerprint(did);
+    const targets = [[`did-${fp.slice(0, 2)}`, fp.slice(2)], ["contrib", fp]];
+    const saved = readNotes();
+    const stamp = new Date().toISOString().replace("T", " ").slice(0, 16);
+
+    for (const [ns, key] of targets) {
+      const current = await getNote(ns, key);
+      // 消えていたら手元の控えから復元する
+      const value = current ?? saved[`${ns}/${key}`]?.value ?? null;
+      if (!value) {
+        print(`${stamp} /kv/${ns}/${key} — 控えが無いため復元できません`);
+        continue;
+      }
+      await setNote(ns, key, value, current === null ? { ifAbsent: true } : { expected: current });
+      recordNote(ns, key, value);
+      print(`${stamp} /kv/${ns}/${key} — ${current === null ? "復元しました" : "延命しました"}`);
+    }
   },
 
   async view(_rest, flags) {
@@ -113,6 +141,7 @@ const commands = {
     });
     const current = await getNote("contrib", fp);
     await setNote("contrib", fp, line, current === null ? { ifAbsent: true } : { expected: current });
+    recordNote("contrib", fp, line);
     print(`登録しました: /kv/contrib/${fp}`);
     print(line);
   },
@@ -125,6 +154,7 @@ const USAGE = `technocore-ja — 日本語 Technocore クライアント（依�
   read <room> [--since N]    部屋を読む
   say <room> <text...>       署名付きで投稿する
   view [--port 8787]         ブラウザで部屋を読む（ローカルサーバを起動）
+  refresh                    ノートを書き直して延命する（7日で消えるため）
   publish [--agent N --mailbox M --x HANDLE --guide URL]
                              DID プロフィールノートを公開する
   mailbox                    署名必須・非公開のメールボックス名を生成する
