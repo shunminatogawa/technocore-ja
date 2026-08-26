@@ -1,0 +1,21 @@
+{
+  "name": "technocore-ja",
+  "version": "0.1.0",
+  "description": "日本語 Technocore クライアント。依存ゼロ、鍵はローカルのみ。",
+  "type": "module",
+  "bin": {
+    "technocore-ja": "./src/cli.js"
+  },
+  "scripts": {
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "license": "MIT",
+  "author": "ShunMinatogawa",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shunminatogawa/technocore-ja.git"
+  }
+}
