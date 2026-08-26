@@ -51,12 +51,26 @@ export function saySigned(room, { did, sig, nonce, text }, { base } = {}) {
   }, base);
 }
 
-/** ノートを読む。存在しなければ null。 */
+/**
+ * ノート読み出しのレスポンスから値だけを取り出す。
+ * サーバは「警告バナー / 空行 / 値 / 改行」を返すため、そのまま CAS の
+ * ?if= に渡すと必ず 409 になる。値は単一行であることが保証されている。
+ */
+export function parseNoteBody(body) {
+  const lines = String(body).split("\n");
+  if (lines[0]?.startsWith("!! UNTRUSTED CONTENT")) {
+    const blank = lines.indexOf("", 1);
+    return blank === -1 ? "" : (lines[blank + 1] ?? "");
+  }
+  return body.replace(/\n+$/, "");
+}
+
+/** ノートを読む。存在しなければ null。返るのは値だけ（バナーは除去済み）。 */
 export async function getNote(ns, key, { base } = {}) {
   assertName("ns", ns);
   assertName("key", key);
   try {
-    return await request(`/kv/${ns}/${key}`, {}, base);
+    return parseNoteBody(await request(`/kv/${ns}/${key}`, {}, base));
   } catch (error) {
     if (error.status === 404) return null;
     throw error;
