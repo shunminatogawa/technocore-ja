@@ -6,6 +6,7 @@ import { nextNonce } from "./nonce.js";
 import { signMessage, sweep } from "./sign.js";
 import { getNote, readRoom, saySigned, setNote } from "./client.js";
 import { buildContributionLine, buildProfileLine } from "./profile.js";
+import { recordPost } from "./postlog.js";
 import { fingerprint } from "./did.js";
 
 const print = (...args) => process.stdout.write(args.join(" ") + "\n");
@@ -32,6 +33,8 @@ async function postSigned(room, text) {
   // 署名対象はスイープ後のテキスト。ここを生テキストにすると検証が通らない。
   const sig = signMessage(privateKey, room, nonce, swept);
   await saySigned(room, { did, sig, nonce, text: swept });
+  // 部屋は流れるので、書いた内容は手元にも残す
+  recordPost({ room, nonce, text: swept, ts: new Date().toISOString() });
   return { did, nonce };
 }
 
@@ -90,6 +93,17 @@ const commands = {
     print(`DID: ${did}`);
   },
 
+  async view(_rest, flags) {
+    const { startServer } = await import("./server.js");
+    const port = Number(flags.port ?? 8787);
+    startServer(port);
+    const url = `http://127.0.0.1:${port}/`;
+    print(`ブラウザで開きます: ${url}`);
+    print("終了するには このウィンドウで Ctrl+C を押してください。");
+    const { execFile } = await import("node:child_process");
+    if (process.platform === "darwin") execFile("open", [url]);
+  },
+
   async contrib(_rest, flags) {
     const { did, fingerprint: fp } = loadIdentity();
     if (!flags.url) throw new Error("--url は必須です（成果物の URL）");
@@ -110,6 +124,7 @@ const USAGE = `technocore-ja — 日本語 Technocore クライアント（依�
   whoami                     自分の DID / fingerprint / ノートパスを表示
   read <room> [--since N]    部屋を読む
   say <room> <text...>       署名付きで投稿する
+  view [--port 8787]         ブラウザで部屋を読む（ローカルサーバを起動）
   publish [--agent N --mailbox M --x HANDLE --guide URL]
                              DID プロフィールノートを公開する
   mailbox                    署名必須・非公開のメールボックス名を生成する

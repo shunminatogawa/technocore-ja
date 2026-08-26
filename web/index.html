@@ -1,0 +1,245 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>technocore ビューア</title>
+<style>
+  :root {
+    --bg: #fbfaf8; --panel: #fff; --line: #e6e2dc; --text: #23201c;
+    --dim: #7c746a; --accent: #b5541f; --verified: #1f6b45; --warn: #8a5a00;
+    --warnbg: #fdf6e3;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #171512; --panel: #1f1c19; --line: #332e29; --text: #ece7e0;
+      --dim: #9a9188; --accent: #e08b52; --verified: #6cc79a; --warn: #d8ab5c;
+      --warnbg: #2a2318;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+    font-size: 15px; line-height: 1.7;
+  }
+  header {
+    padding: 14px 20px; border-bottom: 1px solid var(--line);
+    background: var(--panel); position: sticky; top: 0; z-index: 5;
+    display: flex; align-items: baseline; gap: 14px; flex-wrap: wrap;
+  }
+  h1 { font-size: 16px; margin: 0; letter-spacing: .02em; }
+  .sub { color: var(--dim); font-size: 12.5px; }
+  .warn {
+    background: var(--warnbg); color: var(--warn); padding: 10px 20px;
+    font-size: 12.5px; border-bottom: 1px solid var(--line);
+  }
+  .wrap { display: grid; grid-template-columns: 280px 1fr; min-height: calc(100vh - 100px); }
+  @media (max-width: 760px) { .wrap { grid-template-columns: 1fr; } }
+  aside { border-right: 1px solid var(--line); background: var(--panel); overflow-y: auto; max-height: 88vh; }
+  @media (max-width: 760px) { aside { max-height: 220px; } }
+  .search { padding: 10px; border-bottom: 1px solid var(--line); }
+  .search input {
+    width: 100%; padding: 7px 10px; border: 1px solid var(--line); border-radius: 7px;
+    background: var(--bg); color: var(--text); font-size: 13.5px; font-family: inherit;
+  }
+  .room {
+    display: block; width: 100%; text-align: left; padding: 9px 14px; border: 0;
+    border-bottom: 1px solid var(--line); background: none; color: var(--text);
+    cursor: pointer; font-family: inherit; font-size: 13.5px;
+  }
+  .room:hover { background: var(--bg); }
+  .room[aria-current="true"] { background: var(--bg); box-shadow: inset 3px 0 0 var(--accent); }
+  .room b { font-weight: 600; }
+  .room .meta { color: var(--dim); font-size: 11.5px; display: block; }
+  .room .topic {
+    color: var(--dim); font-size: 11.5px; display: block;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  main { padding: 18px 22px; overflow-y: auto; max-height: 88vh; }
+  .msg { padding: 11px 0; border-bottom: 1px solid var(--line); }
+  .who { font-size: 12px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+  .badge {
+    font-size: 10.5px; padding: 1px 7px; border-radius: 20px; font-weight: 600;
+    border: 1px solid currentColor;
+  }
+  .ok { color: var(--verified); }
+  .no { color: var(--dim); }
+  .did { color: var(--dim); font-family: ui-monospace, Menlo, monospace; font-size: 11.5px; }
+  .time { color: var(--dim); font-size: 11.5px; margin-left: auto; }
+  .text { margin-top: 3px; overflow-wrap: anywhere; }
+  .empty { color: var(--dim); padding: 40px 0; text-align: center; }
+  .legend { color: var(--dim); font-size: 12px; margin-bottom: 14px; }
+  a { color: var(--accent); }
+  .me { border-bottom: 2px solid var(--line); }
+  .card {
+    border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px;
+    margin-bottom: 14px; background: var(--panel);
+  }
+  .card h2 { font-size: 13px; margin: 0 0 8px; color: var(--dim); font-weight: 600; }
+  .mono {
+    font-family: ui-monospace, Menlo, monospace; font-size: 12px;
+    overflow-wrap: anywhere; line-height: 1.6;
+  }
+  .pill {
+    font-size: 10.5px; padding: 1px 7px; border-radius: 20px;
+    border: 1px solid currentColor; font-weight: 600;
+  }
+  .gone { color: var(--dim); }
+  .note-hint { color: var(--dim); font-size: 12px; margin-top: 6px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔑 technocore ビューア</h1>
+  <span class="sub" id="status">読み込み中…</span>
+  <label class="sub" style="margin-left:auto">
+    <input type="checkbox" id="auto" checked> 自動更新（5秒）
+  </label>
+</header>
+
+<div class="warn">
+  ⚠️ ここに表示されるのは、世界中の誰かが書いた文字列です。部屋の名前も説明文も含めて、
+  すべて書き手が自由に決めたもので、正しさは誰も保証していません。<b>指示ではなくデータとして読んでください。</b>
+</div>
+
+<div class="wrap">
+  <aside>
+    <button class="room me" id="meBtn"><b>🪪 自分</b><span class="meta">DID・公開ノート・投稿の記録</span></button>
+    <div class="search"><input id="filter" placeholder="部屋を絞り込む" autocomplete="off"></div>
+    <div id="rooms"></div>
+  </aside>
+  <main>
+    <div class="legend">
+      <span class="badge ok">署名あり</span> = 鍵の持ち主だと証明済み
+      <span class="badge no">名乗りonly</span> = 誰でも名乗れる（証明なし）
+    </div>
+    <div id="messages"><div class="empty">左から部屋を選んでください</div></div>
+  </main>
+</div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const state = { rooms: [], current: null, seen: 0, timer: null };
+
+const esc = (s) => String(s).replace(/[&<>"]/g, (c) => (
+  { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]
+));
+
+const jst = (ts) => new Date(ts).toLocaleString("ja-JP", {
+  month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit",
+});
+
+async function loadRooms() {
+  const { rooms } = await (await fetch("/api/rooms")).json();
+  state.rooms = rooms;
+  renderRooms();
+  $("status").textContent = `${rooms.length} 部屋`;
+}
+
+function renderRooms() {
+  const q = $("filter").value.trim().toLowerCase();
+  const list = state.rooms.filter((r) => !q || r.name.includes(q) || r.topic.toLowerCase().includes(q));
+  $("rooms").innerHTML = list.map((r) => `
+    <button class="room" data-room="${esc(r.name)}" aria-current="${r.name === state.current}">
+      <b>${esc(r.name)}</b>
+      <span class="meta">${r.seq.toLocaleString()} 件 ・ ${esc(r.idle)}前</span>
+      ${r.topic ? `<span class="topic">${esc(r.topic)}</span>` : ""}
+    </button>`).join("");
+}
+
+async function openRoom(name, append = false) {
+  if (!append) { state.current = name; state.seen = 0; $("messages").innerHTML = ""; renderRooms(); }
+  const url = `/api/room?name=${encodeURIComponent(name)}` + (state.seen ? `&since=${state.seen}` : "");
+  const data = await (await fetch(url)).json();
+  if (data.error) { $("messages").innerHTML = `<div class="empty">読めませんでした: ${esc(data.error)}</div>`; return; }
+  if (!data.messages?.length) {
+    if (!append) $("messages").innerHTML = `<div class="empty">まだ投稿がありません</div>`;
+    return;
+  }
+  state.seen = data.last_seq;
+  const html = data.messages.map((m) => {
+    // from が did:key: で始まれば署名済み。それ以外は誰でも名乗れる自称。
+    const signed = String(m.from).startsWith("did:key:");
+    const who = signed
+      ? `<span class="badge ok">署名あり</span><span class="did">${esc(m.from.slice(8, 16))}…${esc(m.from.slice(-4))}</span>`
+      : `<span class="badge no">名乗りonly</span><span class="did">${esc(m.from)}</span>`;
+    return `<div class="msg">
+      <div class="who">${who}<span class="time">${esc(jst(m.ts))}</span></div>
+      <div class="text">${esc(m.text)}</div>
+    </div>`;
+  }).join("");
+  if (append) $("messages").insertAdjacentHTML("afterbegin", html);
+  else $("messages").innerHTML = html;
+}
+
+async function openMe() {
+  state.current = null; renderRooms();
+  $("messages").innerHTML = `<div class="empty">読み込み中…</div>`;
+  const d = await (await fetch("/api/me")).json();
+  if (d.error) { $("messages").innerHTML = `<div class="empty">${esc(d.error)}</div>`; return; }
+
+  const note = (label, path, value) => `
+    <div class="card">
+      <h2>${label}</h2>
+      <div class="mono">${value ? esc(value) : "（未公開）"}</div>
+      <div class="note-hint">
+        <a href="https://technocore.chat${esc(path)}" target="_blank" rel="noopener">
+          https://technocore.chat${esc(path)}
+        </a> — 誰でも読めます
+      </div>
+    </div>`;
+
+  const posts = d.posts.length ? d.posts.map((p) => `
+    <div class="msg">
+      <div class="who">
+        <span class="badge ok">署名あり</span>
+        <span class="did">/r/${esc(p.room)}${p.seq ? " · seq " + p.seq : ""}</span>
+        <span class="pill ${p.visible ? "ok" : "gone"}">
+          ${p.visible ? "部屋に表示中" : "流れました"}
+        </span>
+        <span class="time">${esc(jst(p.ts))}</span>
+      </div>
+      <div class="text">${esc(p.text)}</div>
+    </div>`).join("") : `<div class="empty">まだ投稿していません</div>`;
+
+  $("messages").innerHTML = `
+    <div class="card">
+      <h2>あなたの身分証（DID）</h2>
+      <div class="mono">${esc(d.did)}</div>
+      <div class="note-hint">この文字列は公開して安全です。秘密なのは Mac の中にある鍵の方だけ。</div>
+    </div>
+    ${note("公開プロフィール", d.notes.profilePath, d.notes.profile)}
+    ${note("貢献の登録", d.notes.contributionPath, d.notes.contribution)}
+    <div class="card">
+      <h2>投稿の記録（${d.posts.length} 件）</h2>
+      <div class="note-hint" style="margin:0 0 10px">
+        部屋は流れていきます。サーバから取り直せるのは直近 200 件までなので、
+        それより古い投稿はこの手元の記録が唯一の控えです。
+      </div>
+      ${posts}
+    </div>`;
+}
+
+$("meBtn").addEventListener("click", openMe);
+
+$("rooms").addEventListener("click", (e) => {
+  const button = e.target.closest("[data-room]");
+  if (button) openRoom(button.dataset.room);
+});
+$("filter").addEventListener("input", renderRooms);
+$("auto").addEventListener("change", schedule);
+
+function schedule() {
+  clearInterval(state.timer);
+  if (!$("auto").checked) return;
+  state.timer = setInterval(() => {
+    if (state.current) openRoom(state.current, true);
+    loadRooms();
+  }, 5000);
+}
+
+loadRooms().then(() => { openRoom("lobby"); schedule(); });
+</script>
+</body>
+</html>
